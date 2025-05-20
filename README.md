@@ -1,235 +1,139 @@
-# Fortune Cookie
 
-Este projeto é uma aplicação web simples que exibe uma mensagem de fortuna ao usuário ao clicar em um botão. A aplicação é composta por um **backend em Rust** que acessa a API externa [https://api.adviceslip.com/advice](https://api.adviceslip.com/advice) para obter as mensagens de fortuna, e um **frontend em Nginx** que serve uma página estática. Os contêineres são gerenciados utilizando o Podman.
+# Guia de Instalação e Configuração do Minikube, ArgoCD e Kubernetes
 
-## Índice
+## 1. Instalação do Minikube
 
-- [Estrutura do Projeto](#estrutura-do-projeto)
-- [Pré-requisitos](#pré-requisitos)
-- [Instruções de Configuração](#instruções-de-configuração)
-  - [Clonando o Repositório](#clonando-o-repositório)
-  - [Configurando o Backend](#configurando-o-backend)
-  - [Configurando o Frontend](#configurando-o-frontend)
-- [Construindo as Imagens Docker](#construindo-as-imagens-docker)
-- [Executando a Aplicação](#executando-a-aplicação)
-- [Verificando os Logs](#verificando-os-logs)
-- [Licença](#licença)
-
----
-
-## Estrutura do Projeto
-
+### Instalar o Minikube
 ```bash
-.
-├── backend
-│   ├── Cargo.lock
-│   ├── Cargo.toml
-│   ├── Dockerfile
-│   └── src
-│       └── main.rs
-├── fortune_logs
-│   ├── backend
-│   │   └── fortune_backend.log
-│   └── frontend
-│       ├── access.log
-│       └── error.log
-└── frontend
-    ├── Dockerfile
-    ├── index.html
-    └── nginx.conf
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
 ```
 
-- **backend/**: Código-fonte e Dockerfile do backend em Rust.
-- **frontend/**: Arquivos estáticos e Dockerfile do frontend em Nginx.
-- **fortune_logs/**: Diretório para armazenar os logs do backend e frontend.
-
----
-
-## Pré-requisitos
-
-Certifique-se de ter as seguintes ferramentas instaladas em seu sistema:
-
-- [Podman](https://podman.io/)
-- [Rust](https://www.rust-lang.org/tools/install) (caso queira compilar o backend localmente)
-- [Docker](https://www.docker.com/) (opcional, se preferir usar Docker em vez de Podman)
-
----
-
-## Instruções de Configuração
-
-### Clonando o Repositório
-
-Clone o repositório do projeto para o seu ambiente local:
-
+### Instalar o Kubectl
 ```bash
-git clone https://github.com/seu-usuario/fortune-cookie.git
-cd fortune-cookie
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 ```
 
-**Nota:** Substitua `seu-usuario` pelo nome de usuário correto, se aplicável.
-
-### Configurando o Backend
-
-1. Navegue até o diretório do backend:
-
-   ```bash
-   cd backend
-   ```
-
-2. Revise o arquivo `Cargo.toml` e as dependências do projeto.
-
-3. O arquivo `main.rs` contém o código-fonte do servidor em Rust que fornece as mensagens de fortuna através de uma API REST.
-
-4. **API Externa:** O backend em Rust acessa a API [https://api.adviceslip.com/advice](https://api.adviceslip.com/advice) para obter as mensagens de fortuna dinamicamente.
-
-### Configurando o Frontend
-
-1. Navegue até o diretório do frontend:
-
-   ```bash
-   cd ../frontend
-   ```
-
-2. O arquivo `index.html` contém a página web que será servida pelo Nginx.
-
-3. O arquivo `nginx.conf` é a configuração personalizada do Nginx para servir o frontend.
-
----
-
-## Construindo as Imagens Docker
-
-Antes de executar a aplicação, é necessário construir as imagens Docker para o backend e o frontend.
-
-### Construindo a Imagem do Backend
-
-1. Navegue até o diretório do backend:
-
-   ```bash
-   cd ../backend
-   ```
-
-2. Construa a imagem Docker:
-
-   ```bash
-   podman build -t localhost/fortune-backend:latest .
-   ```
-
-### Construindo a Imagem do Frontend
-
-1. Navegue até o diretório do frontend:
-
-   ```bash
-   cd ../frontend
-   ```
-
-2. Construa a imagem Docker:
-
-   ```bash
-   podman build -t localhost/fortune-frontend:latest .
-   ```
-
----
-
-## Executando a Aplicação
-
-Utilizaremos o Podman para criar um pod que conterá ambos os contêineres do backend e do frontend.
-
-### Passo 1: Criar os Diretórios de Logs
-
-Crie os diretórios para armazenar os logs do backend e do frontend:
-
+### Download do ArgoCD CLI (versão 2.13.3)
 ```bash
-mkdir -p fortune_logs/backend
-mkdir -p fortune_logs/frontend
+curl -sSL -o /tmp/argocd-v2.13.3 https://github.com/argoproj/argo-cd/releases/download/v2.13.3/argocd-linux-amd64
+chmod +x /tmp/argocd-v2.13.3
+sudo mv /tmp/argocd-v2.13.3 /usr/local/bin/argocd
 ```
 
-### Passo 2: Criar o Pod
+## 2. Criação do Cluster com o Minikube
 
-Crie o pod chamado `fortune-pod` mapeando as portas necessárias:
-
+### Configuração do arquivo KUBECONFIG
 ```bash
-podman pod create --name fortune-pod -p 8000:80 -p 8080:8080
+export KUBECONFIG=$HOME/.kube/config
+mkdir $HOME/.kube
+touch $KUBECONFIG
 ```
 
-### Passo 3: Executar o Backend
-
-Execute o contêiner do backend com o volume para persistência dos logs:
-
+### Instalação do Podman (ou Docker)
 ```bash
-podman run -d \
-  --name backend \
-  --pod fortune-pod \
-  -v $(pwd)/fortune_logs/backend:/var/log/fortune_backend:Z \
-  -e API_URL=https://api.adviceslip.com/advice \
-  localhost/fortune-backend:latest
+sudo apt install podman -y
 ```
 
-**Explicação:**
-
-- `-v $(pwd)/fortune_logs/backend:/var/log/fortune_backend:Z` monta o diretório de logs do backend do host no contêiner.
-- `-e API_URL=https://api.adviceslip.com/advice` define a variável de ambiente `API_URL` com a URL da API externa.
-
-### Passo 4: Executar o Frontend
-
-Execute o contêiner do frontend com o volume para persistência dos logs:
-
+### Startando o socket do Podman
 ```bash
-podman run -d \
-  --name frontend \
-  --pod fortune-pod \
-  -v $(pwd)/fortune_logs/frontend:/var/log/nginx:Z \
-  localhost/fortune-frontend:latest
+systemctl --user start podman.socket
 ```
 
-**Explicação:**
-
-- `-v $(pwd)/fortune_logs/frontend:/var/log/nginx:Z` monta o diretório de logs do frontend do host no contêiner.
-
-### Passo 5: Testar a Aplicação
-
-Abra o navegador e acesse:
-
-```
-http://localhost:8000
-```
-
-Clique no botão "Get Your Fortune" para receber uma mensagem de fortuna.
-
----
-
-## Verificando os Logs
-
-### Logs do Backend
-
-Os logs do backend são armazenados em `fortune_logs/backend`.
-
-Verifique os logs:
-
+### Acessar o arquivo sudoers
 ```bash
-ls fortune_logs/backend
-cat fortune_logs/backend/fortune_backend.log
+sudo vi /etc/sudoers
 ```
 
-### Logs do Frontend
-
-Os logs do frontend são armazenados em `fortune_logs/frontend`.
-
-Verifique os logs:
-
+### Configuração do usuário para acessar o Podman
 ```bash
-ls fortune_logs/frontend
-cat fortune_logs/frontend/access.log
-cat fortune_logs/frontend/error.log
+[usuario] ALL=(ALL) NOPASSWD: /usr/bin/podman
 ```
 
----
+### Start do Minikube com o driver do Podman
+```bash
+minikube start -- driver=podman
+```
 
-## Licença
+### Comando para verificar o status do Minikube
+```bash
+minikube status
+```
 
-Este projeto é licenciado sob os termos da licença Apache 2.0. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+## 3. Configuração do ArgoCD
 
----
+### Criação do Namespace
+```bash
+kubectl create namespace argocd
+```
 
-**Nota:** Certifique-se de ter o Podman devidamente configurado em seu sistema. Os comandos fornecidos utilizam o Podman, mas podem ser adaptados para o Docker com pequenas modificações.
+### Instalação do ArgoCD
+```bash
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+```
 
-Se você encontrar algum problema ou tiver dúvidas, sinta-se à vontade para abrir uma issue no repositório do projeto.
+### Port-forward do serviço ArgoCD para teste
+```bash
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+```
+
+### Buscar a secret inicial
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+
+### Login no ArgoCD via terminal
+```bash
+argocd login localhost:8080 --username admin --password ***** --insecure
+```
+
+### Listar todos os clusters
+```bash
+argocd cluster list
+```
+
+### Gerar chave de acesso SSH
+```bash
+ssh-keygen -t rsa -b 4096 -C "SEU_EMAIL" -f ~/.ssh/argocd_rsa
+```
+
+### Editando o bashrc
+```bash
+vi .bashrc
+eval "$(ssh-agent -s)"
+source .bashrc
+ssh-add ~/.ssh/argocd_rsa
+```
+
+### Adicionando a chave pública no GitHub
+```bash
+cat .ssh/argocd_rsa.pub
+```
+- Copiar o conteúdo da chave pública e adicionar na seção "SSH and GPG keys" do GitHub com o nome `argocd-chave-alura`.
+
+### Testando a conexão SSH no GitHub
+```bash
+ssh -T git@github.com
+```
+
+### Adicionar o repositório no ArgoCD
+```bash
+argocd repo add git@github.com:JhoniFarias/fortune-cookie.git --ssh-private-key-path ~/.ssh/argocd_rsa_no_passphrase
+```
+
+## 4. Criar a aplicação no ArgoCD
+
+### Criar a aplicação no ArgoCD via comando
+```bash
+argocd app create fortune-cookie   --repo git@github.com:[seu-usuario]/fortune-cookie.git   --path k8s-manifests   --dest-server https://kubernetes.default.svc   --dest-namespace default   --revision argocd
+```
+
+### Listar todas as revisões da aplicação
+```bash
+argocd app history fortune-cookie
+```
+
+### Rollback de versão
+```bash
+argocd app rollback fortune-cookie (1,2,3)
+```
